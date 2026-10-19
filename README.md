@@ -108,6 +108,7 @@ In demo mode the mock planner and fixtures always answer the bundled RAG-vs-long
 |---|---|---|
 | `DEMO_MODE` | `0` | `1` = mock LLM + fixture search/fetch, no network |
 | `ANTHROPIC_API_KEY` | - | Required unless demo |
+| `ANTHROPIC_BASE_URL` | `https://api.anthropic.com` | Optional Anthropic-compatible endpoint (read by the SDK), e.g. local llama.cpp |
 | `CREW_MODEL` | `claude-sonnet-5-5` | Model id sent to the Anthropic API (also `crew run --model`) |
 | `CREW_SEARCH_PROVIDER` | `tavily` | `tavily`, `brave` or `serpapi` |
 | `TAVILY_API_KEY` / `BRAVE_API_KEY` / `SERPAPI_API_KEY` | - | Key for the chosen provider |
