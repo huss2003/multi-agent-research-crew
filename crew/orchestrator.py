@@ -103,9 +103,10 @@ class Orchestrator:
         }
         try:
             await asyncio.gather(*self._tasks.values(), return_exceptions=True)
-        finally:  # outer cancellation propagates to every child
+        finally:  # outer cancellation propagates to every child; wait so none outlive run()
             for t in self._tasks.values():
                 t.cancel()
+            await asyncio.gather(*self._tasks.values(), return_exceptions=True)
         for nid in order:
             results.setdefault(nid, NodeResult(Status.CANCELLED))
         return results

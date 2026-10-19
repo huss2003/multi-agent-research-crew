@@ -56,3 +56,12 @@ async def test_search_providers_parse_responses():
     )
     assert (await TavilySearch("k", tav).search("q"))[0].url == "https://a"
     assert (await BraveSearch("k", brave).search("q"))[0].snippet == "d"
+
+
+@pytest.mark.parametrize("addr", ["::ffff:169.254.169.254", "fe80::1%eth0", "169.254.169.254"])
+async def test_ssrf_blocks_mapped_and_scoped_addresses(monkeypatch, addr):
+    import socket
+
+    monkeypatch.setattr(socket, "getaddrinfo", lambda *a, **k: [(0, 0, 0, "", (addr, 443))])
+    with pytest.raises(FetchError):
+        await assert_public("http://evil.example/")

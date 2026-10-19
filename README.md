@@ -31,7 +31,7 @@ Each researcher runs: **queries (LLM) → search → fetch → sanitize → extr
 
 ## Sample output (DEMO_MODE, offline)
 
-Excerpt from `crew run --demo` (fixture corpus is synthetic; the mock writer deliberately invents two statements to show the verifier working):
+Excerpt from `crew run --demo` (demo mode ignores your question and always answers this bundled topic; fixture corpus is synthetic; the mock writer deliberately invents two statements to show the verifier working):
 
 ```markdown
 ## What are the limits and failure modes of long-context models
@@ -108,7 +108,7 @@ In demo mode the mock planner and fixtures always answer the bundled RAG-vs-long
 |---|---|---|
 | `DEMO_MODE` | `0` | `1` = mock LLM + fixture search/fetch, no network |
 | `ANTHROPIC_API_KEY` | - | Required unless demo |
-| `CREW_MODEL` | `claude-sonnet-5-5` | Model id sent to the Anthropic API |
+| `CREW_MODEL` | `claude-sonnet-5-5` | Model id sent to the Anthropic API (also `crew run --model`) |
 | `CREW_SEARCH_PROVIDER` | `tavily` | `tavily`, `brave` or `serpapi` |
 | `TAVILY_API_KEY` / `BRAVE_API_KEY` / `SERPAPI_API_KEY` | - | Key for the chosen provider |
 | `CREW_BUDGET_TOKENS` | `200000` | Global token budget (also `--budget-tokens`) |
@@ -124,7 +124,7 @@ In demo mode the mock planner and fixtures always answer the bundled RAG-vs-long
 - **Two-stage verification.** Mechanical checks come first and cost nothing: statement has citations, every cited id exists, stored quote still matches its source span. Then one batched LLM entailment call per report decides whether the quotes support the statement. If the budget runs out, the verifier falls back to a lexical-overlap check and says so in the table.
 - **Budget as a first-class resource.** Every LLM call goes through `BudgetedLLM`, which reserves worst-case tokens (prompt estimate plus `max_tokens`) before the call and settles actual usage after. Researchers may spend only 65% of the budget; the rest is reserved for writer and verifier. Degradation ladder: fewer researchers, then fewer subtasks, then shorter per-source context (6000, 2500, 1000 chars) and a smaller evidence set for the writer, then lexical verification.
 - **Structured output with repair.** The Anthropic backend forces a tool call whose `input_schema` is the Pydantic JSON schema. Whatever comes back is still validated; on failure the model sees its own reply plus the validation error and retries (default 2 repairs). Every repair is a trace event.
-- **Prompt-injection defense in depth.** (1) Strip invisible characters and HTML comments. (2) Remove sentences that look like instructions or exfiltration. (3) Fence each page in a nonce-delimited `<untrusted_source>` block that the system prompt declares to be data. (4) Do not trust the model's output: claims must pass schema validation, cite a URL that was actually fetched, and quote the sanitized text verbatim; suspicious claims are rejected. (5) Fetching has an SSRF guard (public addresses only, re-checked on every redirect) and a size cap. Researchers have no side-effecting tools, so a successful injection has little to act on.
+- **Prompt-injection defense in depth.** (1) Strip invisible characters and HTML comments. (2) Remove sentences that look like instructions or exfiltration. (3) Fence each page in a nonce-delimited `<untrusted_source>` block that the system prompt declares to be data. (4) Do not trust the model's output: claims must pass schema validation, cite a URL that was actually fetched, and quote the sanitized text verbatim; suspicious claims are rejected. (5) Fetching has an SSRF guard (public addresses only, re-checked on every redirect; IPv4-mapped IPv6 and link-local/metadata addresses blocked) and a size cap. The check resolves DNS separately from the HTTP client, so DNS rebinding is not fully closed. Researchers have no side-effecting tools, so a successful injection has little to act on.
 - **Tracing is the debugger.** Every node start/retry/failure, LLM call (tokens), repair, rejected quote and injection flag is a JSONL line; `crew trace` renders a timeline and per-agent spans.
 
 ## Project layout

@@ -89,3 +89,53 @@ async def test_sse_endpoint_streams_events_then_report(tmp_path):
         )
     assert r.headers["content-type"].startswith("text/event-stream")
     assert "event: trace" in r.text and "event: report" in r.text and "## Verification" in r.text
+
+
+async def test_sse_client_disconnect_cancels_pipeline(tmp_path, monkeypatch):
+    import crew.api as api
+    from crew.config import Settings
+
+    started, cancelled = asyncio.Event(), asyncio.Event()
+
+    async def slow_crew(question, *, tracer, **_):
+        tracer.emit("run_start")
+        started.set()
+        try:
+            await asyncio.sleep(60)
+        except asyncio.CancelledError:
+            cancelled.set()
+            raise
+
+    monkeypatch.setattr(api, "run_crew", slow_crew)
+    app_ = api.create_app(Settings(demo=True, trace_dir=tmp_path))
+    inbox: asyncio.Queue = asyncio.Queue()
+    await inbox.put({"type": "http.request", "body": b"", "more_body": False})
+    got_body = asyncio.Event()
+
+    async def receive():
+        return await inbox.get()
+
+    async def send(msg):
+        if msg["type"] == "http.response.body" and msg.get("body"):
+            got_body.set()
+
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0"},
+        "http_version": "1.1",
+        "method": "GET",
+        "scheme": "http",
+        "path": "/research/stream",
+        "raw_path": b"/research/stream",
+        "query_string": b"question=How+do+RAG+and+long+context+compare%3F",
+        "headers": [(b"host", b"t")],
+        "server": ("t", 80),
+        "client": ("c", 1),
+        "root_path": "",
+    }
+    call = asyncio.create_task(app_(scope, receive, send))
+    await asyncio.wait_for(got_body.wait(), 5)
+    assert started.is_set()
+    await inbox.put({"type": "http.disconnect"})
+    await asyncio.wait_for(cancelled.wait(), 5)
+    await asyncio.wait_for(call, 5)

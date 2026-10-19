@@ -49,6 +49,9 @@ def run(
     demo: Annotated[
         bool, typer.Option("--demo", envvar="DEMO_MODE", help="Offline mock LLM + fixtures")
     ] = False,
+    model: Annotated[
+        str | None, typer.Option(envvar="CREW_MODEL", help="Anthropic model id")
+    ] = None,
     budget_tokens: Annotated[int | None, typer.Option(help="Global token budget")] = None,
     budget_usd: Annotated[float | None, typer.Option(help="Global USD budget")] = None,
     unverified: Annotated[
@@ -57,7 +60,7 @@ def run(
 ) -> None:
     load_dotenv()
     s = Settings.from_env()
-    s = Settings(**{**s.__dict__, "demo": demo or s.demo})
+    s = Settings(**{**s.__dict__, "demo": demo or s.demo, "model": model or s.model})
     llm, search, fetch = build_runtime(s)
     budget = BudgetManager(budget_tokens or s.budget_tokens, budget_usd or s.budget_usd, s.price)
     run_id = uuid.uuid4().hex[:8]

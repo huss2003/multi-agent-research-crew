@@ -167,3 +167,23 @@ def test_cycle_and_unknown_dependency_detected():
         topo_sort({"a": ["b"], "b": ["a"]})
     with pytest.raises(ValueError, match="unknown"):
         topo_sort({"a": ["zzz"]})
+
+
+async def test_outer_cancel_waits_for_children():
+    from crew.orchestrator import Node, Orchestrator
+
+    finished = []
+
+    async def slow(_):
+        try:
+            await asyncio.sleep(60)
+        finally:
+            finished.append(1)
+
+    orch = Orchestrator(max_concurrency=2)
+    t = asyncio.create_task(orch.run([Node("a", slow), Node("b", slow)]))
+    await asyncio.sleep(0.05)
+    t.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await t
+    assert finished == [1, 1]

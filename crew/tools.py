@@ -97,10 +97,15 @@ async def assert_public(url: str) -> None:
     p = urlsplit(url)
     if p.scheme not in ("http", "https") or not p.hostname:
         raise FetchError(f"blocked scheme/host: {url}")
-    infos = await asyncio.to_thread(socket.getaddrinfo, p.hostname, p.port or 443)
+    try:
+        infos = await asyncio.to_thread(socket.getaddrinfo, p.hostname, p.port or 443)
+    except (OSError, UnicodeError) as e:
+        raise FetchError(f"cannot resolve {p.hostname}: {e}") from None
     for info in infos:
-        ip = ipaddress.ip_address(info[4][0])
-        if not ip.is_global:
+        ip = ipaddress.ip_address(str(info[4][0]).split("%")[0])  # drop IPv6 zone id
+        if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
+            ip = ip.ipv4_mapped
+        if not ip.is_global or ip.is_multicast:
             raise FetchError(f"blocked non-public address {ip} for {p.hostname}")
 
 

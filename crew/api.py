@@ -7,7 +7,7 @@ import json
 import uuid
 from collections.abc import AsyncIterator
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
 from crew.budget import BudgetManager
@@ -33,7 +33,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         researchers: int = Query(4, ge=1, le=8),
     ) -> StreamingResponse:
         s = settings or Settings.from_env()
-        llm, search, fetch = build_runtime(s)
+        try:
+            llm, search, fetch = build_runtime(s)
+        except SystemExit as e:  # config error must not kill the server process
+            raise HTTPException(503, str(e.code)) from None
         run_id = uuid.uuid4().hex[:8]
         queue: asyncio.Queue[dict | None] = asyncio.Queue()
         tracer = Tracer(s.trace_dir / f"{run_id}.jsonl", run_id)
